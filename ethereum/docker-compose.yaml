@@ -1,0 +1,41 @@
+version: '3'
+services:
+  bootnode:
+    build:
+      context: .
+      dockerfile: bootnode.Dockerfile
+    networks:
+      - ethereum_network
+    ports:
+      - "30301:30301/udp"
+    volumes:
+      - ./bootnode_data:/bootnode_data
+
+  jsonrpc:
+    build:
+      context: .
+      dockerfile: jsonrpc.Dockerfile
+    networks:
+      - ethereum_network
+    depends_on:
+      - bootnode
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./bootnode_data:/bootnode_data
+
+  miner:
+    build:
+      context: .
+      dockerfile: miner.Dockerfile
+    networks:
+      - ethereum_network
+    depends_on:
+      - bootnode
+    volumes:
+      - ./bootnode_data:/bootnode_data
+      - ./miner_data:/root/.ethereum
+
+networks:
+  ethereum_network:
+    driver: bridge

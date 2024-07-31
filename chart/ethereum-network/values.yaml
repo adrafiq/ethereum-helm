@@ -1,0 +1,55 @@
+
+bootnode:
+  replicaCount: 1
+  image:
+    repository: 
+    tag: latest
+    pullPolicy: Always
+  storage:
+    size: 5Gi
+    storageClass: standard-rwo
+
+
+jsonrpc:
+  replicaCount: 1
+  image:
+    repository: 
+    tag: latest
+    pullPolicy: Always
+  storage:
+    size: 20Gi
+    storageClass: standard-rwo
+
+
+miner:
+  replicaCount: 1
+  image:
+    repository: 
+    tag: latest
+    pullPolicy: Always
+  storage:
+    size: 50Gi
+    storageClass: standard-rwo
+
+
+imagePullSecrets:
+  - name: gcr-json-key
+
+networkId: 15
+
+storage:
+  sharedStorageClass: standard-rwo
+
+genesis: |
+  {
+    "config": {
+      "chainId": 15,
+      "homesteadBlock": 0,
+      "eip150Block": 0,
+      "eip155Block": 0,
+      "eip158Block": 0
+    },
+    "difficulty": "0x400",
+    "gasLimit": "0x8000000",
+    "alloc": {}
+  }

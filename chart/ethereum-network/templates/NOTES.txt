@@ -1,0 +1,46 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your private Ethereum network has been deployed with the following components:
+1. Bootnode
+2. JSON-RPC Server
+3. Miner
+
+To check the status of your network, follow these steps:
+
+1. Check if all pods are running:
+   kubectl get pods -l app in (bootnode,jsonrpc,miner)
+
+2. View the logs of each component:
+   kubectl logs -l app=bootnode
+   kubectl logs -l app=jsonrpc
+   kubectl logs -l app=miner
+
+3. To interact with the JSON-RPC server:
+   kubectl port-forward svc/jsonrpc 8545:8545
+
+   Then, in a new terminal, you can use curl to send RPC requests:
+
+   a. Check the latest block number:
+      curl -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+
+   b. Check if mining is active:
+      curl -X POST --data '{"jsonrpc":"2.0","method":"eth_mining","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+
+   c. Get the network ID:
+      curl -X POST --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+
+4. To check the bootnode enode:
+   kubectl exec -it $(kubectl get pod -l app=bootnode -o jsonpath="{.items[0].metadata.name}") -- cat /tmp/enode.txt
+
+5. To attach to the Geth console on the miner:
+   kubectl exec -it $(kubectl get pod -l app=miner -o jsonpath="{.items[0].metadata.name}") -- geth attach /root/.ethereum/geth.ipc
+
+   Once in the Geth console, you can run commands like:
+   - eth.blockNumber
+   - eth.mining
+   - eth.hashrate
+   - net.peerCount
+
+Remember to replace 'ethereum-network' with the actual release name if you used a different name during installation.
+
+For more information on interacting with your Ethereum network, please refer to the Ethereum documentation: https://geth.ethereum.org/docs/

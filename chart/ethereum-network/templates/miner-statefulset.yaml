@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: miner
+spec:
+  serviceName: "miner"
+  replicas: {{ .Values.miner.replicas }}
+  selector:
+    matchLabels:
+      app: miner
+  template:
+    metadata:
+      labels:
+        app: miner
+    spec:      
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-bootnode
+        image: busybox
+        command: ['sh', '-c', 'until [ -f /common/enode.txt ]; do echo waiting for bootnode; sleep 2; done;']
+        volumeMounts:
+        - name: common-enode
+          mountPath: /common
+      containers:
+      - name: miner
+        image: "{{ .Values.miner.image.repository }}:{{ .Values.miner.image.tag }}"
+        imagePullPolicy: {{ .Values.miner.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          /bin/sh /scripts/start-miner.sh
+        ports:
+        - containerPort: 30303
+          name: p2p
+        volumeMounts:
+        - name: data
+          mountPath: /root/.ethereum
+        - name: common-enode
+          mountPath: /common
+        - name: config
+          mountPath: /scripts
+        - name: genesis
+          mountPath: /root/genesis.json
+          subPath: genesis.json
+        readinessProbe:
+          tcpSocket:
+            port: 30303
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - >
+              geth --exec "eth.mining" attach http://localhost:8545
+          initialDelaySeconds: 60
+          periodSeconds: 15
+      volumes:
+      - name: genesis
+        configMap:
+          name: ethereum-genesis
+      - name: common-enode
+        persistentVolumeClaim:
+          claimName: common-enode-pvc
+      - name: config
+        configMap:
+          name: miner-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: {{ .Values.miner.storage.storageClass }}
+      resources:
+        requests:
+          storage: {{ .Values.miner.storage.size }}

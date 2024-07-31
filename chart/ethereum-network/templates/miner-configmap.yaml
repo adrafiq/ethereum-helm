@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: miner-config
+data:
+  start-miner.sh: |
+    #!/bin/sh
+    set -e
+
+    BOOTNODE_ENODE=$(cat /common/enode.txt)
+    echo "Bootnode enode: ${BOOTNODE_ENODE}"
+
+    # Initialize geth with genesis file if not already initialized
+    if [ ! -d /root/.ethereum/geth ]; then
+      geth init /root/genesis.json
+    fi
+
+    # Create an account if it doesn't exist
+    if [ ! -d /root/.ethereum/keystore ]; then
+        echo "password" > /tmp/password
+        geth account new --password /tmp/password
+        rm /tmp/password
+    fi
+    ACCOUNT=$(geth account list | head -n 1 | cut -d '{' -f 2 | cut -d '}' -f 1)
+
+    # Start geth with mining enabled
+    exec geth --datadir /root/.ethereum \
+         --networkid {{ .Values.networkId }} \
+         --bootnodes ${BOOTNODE_ENODE} \
+         --mine --miner.etherbase $ACCOUNT \
+         --allow-insecure-unlock

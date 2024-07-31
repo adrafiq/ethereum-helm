@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bootnode
+spec:
+  serviceName: "bootnode"
+  replicas: {{ .Values.bootnode.replicas }}
+  selector:
+    matchLabels:
+      app: bootnode
+  template:
+    metadata:
+      labels:
+        app: bootnode
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: init-bootnode
+        image: "{{ .Values.bootnode.image.repository }}:{{ .Values.bootnode.image.tag }}"
+        imagePullPolicy: {{ .Values.bootnode.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -e
+          mkdir -p /root/.ethereum /common
+          if [ ! -f /root/.ethereum/boot.key ]; then
+            bootnode -genkey /root/.ethereum/boot.key
+          fi
+          BOOTNODE_ID=$(bootnode -nodekey /root/.ethereum/boot.key -writeaddress)
+          BOOTNODE_IP=$(hostname -i)
+          echo "enode://$BOOTNODE_ID@$BOOTNODE_IP:30301" > /common/enode.txt
+          echo "Bootnode enode written to /common/enode.txt"
+        volumeMounts:
+        - name: bootnode-storage
+          mountPath: /root/.ethereum
+        - name: common-enode
+          mountPath: /common
+      containers:
+      - name: bootnode
+        image: "{{ .Values.bootnode.image.repository }}:{{ .Values.bootnode.image.tag }}"
+        imagePullPolicy: {{ .Values.bootnode.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args: 
+        - |
+          BOOTNODE_IP=$(hostname -i)
+          exec bootnode -nodekey /root/.ethereum/boot.key \
+                        -addr :30301 \
+                        -nat extip:$BOOTNODE_IP \
+                        -verbosity 9
+        ports:
+        - containerPort: 30301
+          name: discovery
+        - containerPort: 8545
+          name: rpc
+        volumeMounts:
+        - name: bootnode-storage
+          mountPath: /root/.ethereum
+        - name: common-enode
+          mountPath: /common
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pgrep bootnode
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pgrep bootnode
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: common-enode
+        persistentVolumeClaim:
+          claimName: common-enode-pvc
+  volumeClaimTemplates:
+  - metadata:
+      name: bootnode-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: {{ .Values.bootnode.storage.storageClass }}
+      resources:
+        requests:
+          storage: {{ .Values.bootnode.storage.size }}

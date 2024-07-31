@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bootnode-config
+data:
+  start-bootnode.sh: |
+    #!/bin/sh
+    set -e
+    
+    # Ensure the shared directory exists
+    mkdir -p /common
+    
+    # Get the pod's IP address
+    BOOTNODE_IP=$(hostname -i)
+    
+    if [ ! -f /root/.ethereum/boot.key ]; then
+      bootnode -genkey /root/.ethereum/boot.key
+    fi
+    
+    BOOTNODE_ID=$(bootnode -nodekey /root/.ethereum/boot.key -writeaddress)
+    echo "enode://$BOOTNODE_ID@$BOOTNODE_IP:30301" > /common/enode.txt
+    
+    echo "Starting bootnode with IP: $BOOTNODE_IP"
+    
+    exec bootnode -nodekey /root/.ethereum/boot.key \
+                  -addr :30301 \
+                  -nat extip:$BOOTNODE_IP \
+                  -verbosity 9

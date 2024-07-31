@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jsonrpc
+spec:
+  selector:
+    app: jsonrpc
+  ports:
+  - port: 8545
+    name: rpc
+  - port: 30303
+    name: p2p

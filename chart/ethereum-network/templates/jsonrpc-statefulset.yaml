@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jsonrpc
+spec:
+  serviceName: "jsonrpc"
+  replicas: {{ .Values.jsonrpc.replicas }}
+  selector:
+    matchLabels:
+      app: jsonrpc
+  template:
+    metadata:
+      labels:
+        app: jsonrpc
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-bootnode
+        image: busybox
+        command: ['sh', '-c', 'until [ -f /common/enode.txt ]; do echo waiting for bootnode; sleep 2; done;']
+        volumeMounts:
+        - name: common-enode
+          mountPath: /common
+      containers:
+      - name: jsonrpc
+        image: "{{ .Values.jsonrpc.image.repository }}:{{ .Values.jsonrpc.image.tag }}"
+        imagePullPolicy: {{ .Values.jsonrpc.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+           /bin/sh /scripts/start-jsonrpc.sh
+        ports:
+        - containerPort: 8545
+          name: rpc
+        - containerPort: 30303
+          name: p2p
+        volumeMounts:
+        - name: genesis
+          mountPath: /root/genesis.json
+          subPath: genesis.json
+        - name: data
+          mountPath: /root/.ethereum
+        - name: common-enode
+          mountPath: /common
+        - name: config
+          mountPath: /scripts
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8545
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - >
+              curl -X POST --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+          initialDelaySeconds: 60
+          periodSeconds: 15
+      volumes:
+      - name: common-enode
+        persistentVolumeClaim:
+          claimName: common-enode-pvc
+      - name: config
+        configMap:
+          name: jsonrpc-config
+      - name: genesis
+        configMap:
+          name: ethereum-genesis
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: {{ .Values.jsonrpc.storage.storageClass }}
+      resources:
+        requests:
+          storage: {{ .Values.jsonrpc.storage.size }}
